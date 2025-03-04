@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 
 public class CustomAssetImporter : EditorWindow
 {
@@ -10,6 +11,8 @@ public class CustomAssetImporter : EditorWindow
     private string[] filesInSourceFolder;
     private Vector2 scrollPosition;
     private Dictionary<string, bool> fileSelectionStates = new Dictionary<string, bool>(); // Dosya seçim durumlarý
+    private string searchText = ""; // Aranacak kelime
+    private string replaceText = ""; // Deðiþtirilecek kelime
 
     [MenuItem("Window/Custom Asset Importer")]
     public static void ShowWindow()
@@ -57,6 +60,23 @@ public class CustomAssetImporter : EditorWindow
             GUILayout.Label("Target Folder: " + targetFolderPath);
         }
 
+        // Name Replace Alaný
+        GUILayout.Label("Name Replace", EditorStyles.boldLabel);
+        searchText = EditorGUILayout.TextField("Search Text", searchText);
+        replaceText = EditorGUILayout.TextField("Replace Text", replaceText);
+
+        // Tümünü Seç ve Tümünü Kaldýr Butonlarý
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Select All"))
+        {
+            SelectAllFiles(true); // Tüm dosyalarý seç
+        }
+        if (GUILayout.Button("Deselect All"))
+        {
+            SelectAllFiles(false); // Tüm dosyalarýn seçimini kaldýr
+        }
+        GUILayout.EndHorizontal();
+
         // Kaynak klasördeki dosyalarý listeleme ve seçim yapma
         if (!string.IsNullOrEmpty(sourceFolderPath) && filesInSourceFolder != null && filesInSourceFolder.Length > 0)
         {
@@ -66,8 +86,12 @@ public class CustomAssetImporter : EditorWindow
             {
                 if (file.EndsWith(".meta")) continue; // Meta dosyalarýný atla
 
-                // Dosya seçim durumunu göster
-                fileSelectionStates[file] = EditorGUILayout.ToggleLeft(file, fileSelectionStates[file]);
+                // Dosya ismini deðiþtirilmiþ haliyle göster
+                string fileName = Path.GetFileName(file);
+                string newFileName = fileName.Replace(searchText, replaceText);
+                GUILayout.BeginHorizontal();
+                fileSelectionStates[file] = EditorGUILayout.ToggleLeft($"{fileName} -> {newFileName}", fileSelectionStates[file]);
+                GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
         }
@@ -79,6 +103,16 @@ public class CustomAssetImporter : EditorWindow
             {
                 ImportSelectedAssets();
             }
+        }
+    }
+
+    private void SelectAllFiles(bool select)
+    {
+        // fileSelectionStates sözlüðündeki tüm dosyalarýn seçim durumunu güncelle
+        var keys = fileSelectionStates.Keys.ToList(); // Sözlük anahtarlarýný bir listeye al
+        foreach (var key in keys)
+        {
+            fileSelectionStates[key] = select; // Tüm dosyalarý seç veya seçimi kaldýr
         }
     }
 
@@ -103,7 +137,8 @@ public class CustomAssetImporter : EditorWindow
             if (file.Value) // Sadece seçili dosyalarý iþle
             {
                 string fileName = Path.GetFileName(file.Key);
-                string targetFilePath = Path.Combine(targetFolderPath, fileName);
+                string newFileName = fileName.Replace(searchText, replaceText); // Dosya ismini deðiþtir
+                string targetFilePath = Path.Combine(targetFolderPath, newFileName);
 
                 // Dosyayý kopyala
                 File.Copy(file.Key, targetFilePath, true);
@@ -111,7 +146,7 @@ public class CustomAssetImporter : EditorWindow
                 // Unity'de import et
                 string relativePath = "Assets" + targetFilePath.Substring(Application.dataPath.Length);
                 AssetDatabase.ImportAsset(relativePath, ImportAssetOptions.ForceUpdate);
-                Debug.Log("Imported: " + relativePath);
+                Debug.Log($"Imported: {file.Key} -> {relativePath}");
             }
         }
 
